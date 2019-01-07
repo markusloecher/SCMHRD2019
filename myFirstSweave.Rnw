@@ -1,0 +1,28 @@
+\documentclass{article}
+
+\begin{document}
+\SweaveOpts{concordance=TRUE}
+
+<<echo=FALSE, results=hide>>=
+n = 5
+@
+
+
+The sample size was \Sexpr{n}
+
+We made the following assumptions 
+
+\begin{enumerate}
+\item Independence of Events
+\item Constant Variance
+\end{enumerate}
+
+\begin{equation}
+\bar{x} = \sum_{i=1}^n{(x_i - \mu)^2}
+\end{equation}
+
+<<echo=FALSE, results=hide, fig=TRUE>>=
+plot(pressure)
+@
+
+\end{document}

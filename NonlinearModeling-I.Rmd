@@ -1,0 +1,505 @@
+---
+title: "Nonlinear Modeling I"
+author: "M Loecher"
+output:
+   pdf_document:
+     extra_dependencies: ["pdfpages"]
+     toc: true
+     toc_depth: 2
+     includes:
+        in_header: header.tex
+classoption: landscape
+header-includes: \usepackage{amsmath}
+subtitle: Splines and Polynomial Regression (close to chapter 7, ISLR)
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message=FALSE, warning=FALSE)
+
+#library(gamair)
+#data(mpg)
+library(lubridate)
+library(knitr)
+#library(dygraphs)
+library(xts)
+library(ISLR)
+data(Auto)
+data(mcycle,package="MASS")
+library(splines)
+library(boot)
+library(mgcv)
+```
+
+
+\includepdf[pages={1-2}]{externalSlides/Intro.pdf}
+
+
+# Motivation
+
+## The truth is never linear!
+## Or almost never!
+
+```{r, fig.width=10,out.width='.95\\linewidth'}
+par(mfrow=c(1,2))
+plot(mpg ~ weight, data = Auto,col = rgb(0,0,1,0.5), pch=20,ylim=c(0,50));grid()
+title("Auto data")
+plot(accel ~ times, data = mcycle,col = rgb(0,1,0,0.5), pch=20,ylim=c(0,50),type="b");grid()
+title("mcycle data")
+```
+
+## [Wealth and Europe's low birth rates](https://www.economist.com/blogs/graphicdetail/2017/09/daily-chart-2)
+
+\centering
+
+```{r, out.width="600px"}
+knitr::include_graphics("figures/economist_2017_09_daily-chart-2.png")
+```
+
+Birth rates are indeed highly correlated with national income. But the fertility rates of many European countries are lower than would be expected if GDP per person were the only factor that mattered. Romania, for instance, has 1.5 births per adult woman. Based purely on its level of economic development, that figure would be expected to be around 2.1.
+
+[Taxi Cab Animations](https://archive.nytimes.com/www.nytimes.com/interactive/2010/04/02/nyregion/taxi-map.html?_r=0)
+
+\includepdf[pages={4-5}]{externalSlides/BanditsSpatialSurveillance.pdf}
+
+\includepdf[pages={1}]{externalSlides/NYTAnimation.pdf}
+
+\includepdf[pages={4-12}]{externalSlides/ISLR-nonlinear.pdf}
+
+# Polynomial Regression
+
+## Code to produce Figure 7.1:
+
+
+
+```{r, echo=TRUE, fig.margin=TRUE}
+library(ISLR)
+attach(Wage)
+
+fit <- lm(wage ~ poly(age, 4), data = Wage)
+#coef(summary(fit))
+
+fit2 <- lm(wage ~ poly(age, 4, raw =TRUE), data = Wage)
+#coef(summary(fit2))
+
+agelims <- range(age)
+age.grid <- seq(from = agelims[1], to = agelims[2])
+preds <- predict(fit, newdata = list(age = age.grid), se = TRUE)
+se.bands <- cbind(preds$fit + 2*preds$se.fit, preds$fit - 2*preds$se.fit)
+
+par(mfrow = c(1, 2), mar = c(4.5, 4.5, 1, 1), oma = c(0, 0, 4, 0))
+plot(age, wage, xlim = agelims, cex = 0.5, col = "darkgrey")
+title("Degree-4 Polynomial", outer = TRUE)
+lines(age.grid, preds$fit, lwd = 2, col = "blue")
+matlines(age.grid, se.bands, lwd = 1, col = "blue", lty = 3)
+
+fitLR <- glm(I(wage > 250) ~ poly(age, 4), data = Wage, family = binomial)
+
+preds <- predict(fitLR, newdata = list(age = age.grid), se = TRUE)
+
+pfit <- exp(preds$fit)/(1 + exp(preds$fit))
+se.bands.logit <- cbind(preds$fit + 2*preds$se.fit, preds$fit - 2*preds$se.fit)
+se.bands <- exp(se.bands.logit)/(1 + exp(se.bands.logit))
+
+preds <- predict(fitLR, newdata = list(age = age.grid), type = "response", se = TRUE)
+
+plot(age, I(wage > 250), xlim = agelims, type = "n", ylim = c(0, 0.2))
+points(jitter(age), I((wage > 250)/5), cex = 0.5, pch = "|", col = "darkgrey")
+lines(age.grid, pfit, lwd = 2, col = "blue")
+matlines(age.grid, se.bands, lwd = 1, col = "blue", lty = 3)
+```
+
+
+\benum
+
+
+\item \textbf{Exercises}
+
+  \benum
+    \item  Compare fits using `poly` with "manual" polynomials
+    \item Use `anova` to find the best degree
+    \item Produce an analogous plot for the *Auto* data.
+  \eenum
+
+
+# Domain Partitions
+
+\large
+
+Using polynomial functions of the features as predictors in a linear model
+imposes a **global** structure on the non-linear function of X. We can instead
+adapt a more **local** approach and use step functions by breaking the range of X into bins, and fit a different constant in each bin.
+This amounts to converting a continuous variable into an *ordered categorical
+variable*. (We will see similar ideas with trees later on)
+
+\includegraphics[width=0.8\textwidth]{figures/ESLII-Fig5-1-top.pdf}
+
+\includepdf[pages={13-17}]{externalSlides/ISLR-nonlinear.pdf}
+
+\includepdf[pages={24,27}]{externalSlides/ISLR-statistical_learning.pdf}
+
+## Code to produce Figure 7.2
+
+```{r, echo =TRUE, fig.height= 4}
+fit <- lm(wage ~ cut(age, 4), data = Wage)
+preds <- predict(fit, newdata = list(age = age.grid), se = TRUE)
+se.bands <- cbind(preds$fit + 2*preds$se.fit, preds$fit - 2*preds$se.fit)
+
+plot(age, wage, xlim = agelims, cex = 0.5, col = "darkgrey", main = "Piecewise Constant")
+lines(age.grid, preds$fit, lwd = 2, col = "blue")
+matlines(age.grid, se.bands, lwd = 1, col = "blue", lty = 3)
+```
+
+\item \textbf{Exercises}
+
+Complete the 2nd plot
+
+
+# Basis Functions
+
+\LARGE
+
+Polynomial and piecewise-constant regression models are in fact special
+cases of a **basis function** approach. The idea is to have at hand a family of functions or transformations that can be applied to a variable X. Instead of fitting a linear model in X, we fit the model
+$$
+\label{eq:addLM}
+y_i = \beta_0 + \beta_1 b_1(x_i) + \beta_2 b_2(x_i) \ldots + \beta_{K} b_K(x_i) + \epsilon_i
+$$
+We can think of (\ref{eq:addLM}) as a standard linear model with predictors $b_1(x_i), \ldots, b_K(x_i)$. Hence, we can use least squares to estimate the unknown regression coefficients. Importantly, this means that all of the inference tools for linear models, such as standard errors for the
+coefficient estimates and F-statistics for the model’s overall significance,
+are available in this setting.
+
+\includegraphics[height=2.5in]{figures/ESLII-Fig5-1-bottom.pdf}
+
+# Regression Splines
+
+## Piecewise Polynomials
+
+\LARGE
+Instead of fitting a high-degree polynomial over the entire range of X, piecewise
+polynomial regression involves fitting separate low-degree polynomials
+over different regions of X. The points where the coefficients change are called **knots**.
+
+A piecewise cubic polynomial with a single knot at a point c takes the form
+
+$$
+y_i =
+  \begin{cases}
+    \beta_{01} + \beta_{11} x_i + \beta_{21} x_i^2 + \beta_{31} x_i^3 + \epsilon_i,&\text{ if }  x\leq c\\
+    \beta_{02} + \beta_{12} x_i + \beta_{22} x_i^2 + \beta_{32} x_i^3 + \epsilon_i,&\text{ if }  x \geq c
+  \end{cases}
+$$
+Using more knots leads to a more flexible piecewise polynomial. In general,
+if we place K different knots throughout the range of X, then we
+will end up fitting K + 1 different cubic polynomials. Note that we do not
+need to use a cubic polynomial. For example, we can instead fit piecewise
+linear functions. In fact, our piecewise constant functions from above are
+piecewise polynomials of degree 0!
+
+\includepdf[pages={1}]{figures/ESLII-Fig5-2.pdf}
+
+
+\includepdf[pages={18-24}]{externalSlides/ISLR-nonlinear.pdf}
+
+## Regression Splines in R
+
+Fitting splines in R is easy: `bs(x, ...)`  for any degree splines,
+and `ns(x, ...)` for natural cubic splines, in package splines.
+
+In order to fit regression splines in R, we use the splines library. We saw that regression splines can be fit by constructing an appropriate
+matrix of basis functions. The bs() function generates the entire matrix of
+basis functions for splines with the specified set of knots. By default, cubic
+splines are produced. Fitting wage to age using a regression spline is simple
+
+```{r, echo=TRUE}
+agelims=range(age)
+age.grid=seq(from=agelims[1],to=agelims[2])
+
+
+fit=lm(wage~bs(age,knots=c(25,40,60)),data=Wage)
+pred=predict(fit,newdata=list(age=age.grid),se=T)
+plot(age,wage,col="gray")
+lines(age.grid,pred$fit,lwd=2)
+lines(age.grid,pred$fit+2*pred$se,lty="dashed")
+lines(age.grid,pred$fit-2*pred$se,lty="dashed")
+```
+
+
+Here we have prespecified knots at ages 25, 40, and 60. This produces a
+spline with six basis functions. (Recall that a cubic spline with three knots
+has seven degrees of freedom; these degrees of freedom are used up by an
+intercept, plus six basis functions.) We could also use the df option to
+produce a spline with knots at uniform quantiles of the data.
+
+```{r, echo=TRUE}
+dim(bs(age,knots=c(25,40,60)))
+dim(bs(age,df=6))
+attr(bs(age,df=6),"knots")
+```
+
+In this case R chooses knots at ages 33.8, 42.0, and 51.0, which correspond
+to the 25th, 50th, and 75th percentiles of age. The function bs() also has
+a degree argument, so we can fit splines of any degree, rather than the
+default degree of 3 (which yields a cubic spline).
+In order to instead fit a natural spline, we use the ns() function. Here
+we fit a natural spline with four degrees of freedom.
+
+
+```{r, echo=TRUE}
+fit2=lm(wage~ns(age,df=4),data=Wage)
+pred2=predict(fit2,newdata=list(age=age.grid),se=T)
+#plot(age,wage,xlim=agelims,cex=.5,col="darkgrey")
+#lines(age.grid, pred2$fit,col="red",lwd=2)
+```
+
+\LARGE
+A cubic spline with $K$ knots uses a total of ?? degrees of freedom.
+
+\item \textbf{Exercises, Coding}
+
+Fit cubic and natural cubic splines to the motorcycle data 
+
+\benum
+    \item with prespecified knots
+    \item with knots at uniform quantiles of the data
+    \item How would you decide on the optimal knots ?
+\eenum
+
+\item \textbf{Exercises, Conceptual}
+
+It was mentioned above that a cubic regression spline with one knot at $\xi$ can be obtained using a basis of the form $x$; $x^2$, $x^3$, $(x - \xi)^3_+$, where $(x - \xi)^3_+ = (x - \xi)^3$ if $x > \xi$ and equals $0$ otherwise. We will now show that a function of the form
+\[f(x) = \beta_0 + \beta_1x + \beta_2x^2 + \beta_3x^3 + \beta_4(x - \xi)^3_+\]
+is indeed a cubic regression spline, regardless of the values of $\beta_0,\beta_1,\beta_2,\beta_3,\beta_4$.
+
+  \benum
+    \item Find a cubic polynomial
+\[f_1(x) = a_1 + b_1x + c_1x^2 + d_1x^3\]
+such that $f(x) = f_1(x)$ for all $x\le\xi$. Express $a_1,b_1,c_1,d_1$ in terms of $\beta_0,\beta_1,\beta_2,\beta_3,\beta_4$.
+
+\item Find a cubic polynomial
+\[f_2(x) = a_2 + b_2x + c_2x^2 + d_2x^3\]
+such that $f(x) = f_2(x)$ for all $x>\xi$. Express $a_2,b_2,c_2,d_2$ in terms of $\beta_0,\beta_1,\beta_2,\beta_3,\beta_4$. 
+(We would then have established that $f(x)$ is a piecewise polynomial.)
+
+\item Show that $f_1(\xi) = f_2(\xi)$. That is $f(x)$ is continuous at $\xi$.
+
+
+\item Show that $f_1'(\xi) = f_2'(\xi)$. That is $f'(x)$ is continuous at $\xi$.
+
+  \eenum
+
+\includepdf[pages={25-28}]{externalSlides/ISLR-nonlinear.pdf}
+
+# Smoothing Splines
+
+Broadly speaking, the second derivative
+of a function g(t) is a measure of its roughness: it is large in absolute value if g(t) is very wiggly near t, and it is close to zero otherwise. (The second
+derivative of a straight line is zero; note that a line is perfectly smooth.)
+
+$\int g''(t)^2 dt$ simply a measure of the total change in the function g'(t), over its entire range. If g is very smooth, then g'(t) will be close to constant and $\int g''(t)^2 dt$ will take on a small value.
+Conversely, if g is jumpy and variable then g''(t) will vary significantly and
+$\int g''(t)^2 dt$ will take on a large value. 
+
+A smoothing spline is simply a natural cubic spline
+with knots at every unique value of xi. It might seem that a smoothing
+spline will have far too many degrees of freedom, since a knot at each data
+point allows a great deal of flexibility. But the tuning parameter $\lambda$ controls the roughness of the smoothing spline, and hence the **effective degrees of freedom**.
+
+\includepdf[pages={29-40}]{externalSlides/ISLR-nonlinear.pdf}
+
+## Smoothing Splines in R
+
+In order to fit a smoothing spline, we use the smooth.spline() function.
+Figure 7.8 was produced with the following code:
+
+```{r, echo=TRUE}
+par(err=-1)
+plot(age, wage, xlim = agelims, cex = 0.5, col = "darkgrey")
+title("Smoothing Spline")
+fit  <- smooth.spline(age, wage, df = 16)
+fit2 <- smooth.spline(age, wage, cv = TRUE)
+fit2$df
+lines(fit , col = "red" , lwd = 2)
+lines(fit2, col = "blue", lwd = 2)
+legend("topright", legend = c("16 DF", "6.8 DF"), col = c("red", "blue"),
+lty = 1, lwd = 2, cex = 0.8)
+```
+
+Notice that in the first call to smooth.spline(), we specified df=16. The
+function then determines which value of $\lambda$ leads to 16 degrees of freedom. In the second call to smooth.spline(), we select the smoothness level by **crossvalidation**; this results in a value of $\lambda$ that yields 6.8 degrees of freedom.
+
+\item \textbf{Exercises, Conceptual}
+
+Suppose that a curve $\hat{g}$ is computed to smoothly fit a set of $n$ points using the following formula
+\[\hat{g} = \arg\min_g\Biggl(\sum_{i=1}^n(y_i - g(x_i))^2 + \lambda\int[g^{(m)}(x)]^2dx\biggr),\]
+where $g^{(m)}$ represents the mth derivative of $g$ (and $g^{(0)} = g$). Provide example sketches of $\hat{g}$ in each of the following scenarios.
+
+\benum
+    \item $\lambda = \infty$, $m = 0$.
+
+   \item $\lambda = \infty$, $m = 1$.
+
+
+  \item $\lambda = \infty$, $m = 2$.
+
+
+\item $\lambda = \infty$, $m = 3$.
+
+\item $\lambda = 0$, $m = 3$.
+
+
+\eenum
+
+\item \textbf{Exercises, Conceptual}
+
+consider two curves, $\hat{g}_1$ and $\hat{g}_2$, defined by
+\[\hat{g}_1 = \arg\min_g\Biggl(\sum_{i=1}^n(y_i - g(x_i))^2 + \lambda\int[g^{(3)}(x)]^2dx\biggr)\]
+\[\hat{g}_2 = \arg\min_g\Biggl(\sum_{i=1}^n(y_i - g(x_i))^2 + \lambda\int[g^{(4)}(x)]^2dx\biggr)\]
+where $g^{(m)}$ represents the mth derivative of $g$.
+
+\benum
+    \item As $\lambda\rightarrow\infty$, will $\hat{g}_1$ or $\hat{g}_2$ have the smaller training RSS ?
+
+ \item As $\lambda\rightarrow\infty$, will $\hat{g}_1$ or $\hat{g}_2$ have the smaller test RSS ?
+
+ \item For $\lambda = 0$, will $\hat{g}_1$ or $\hat{g}_2$ have the smaller training and test RSS ?
+
+\eenum
+
+
+\item \textbf{Exercises, Coding}
+
+This question uses the variables "dis" (the weighted mean of distances to five Boston employment centers) and "nox" (nitrogen oxides concentration in parts per 10 million) from the "Boston" data. We will treat "dis" as the predictor and "nox" as the response.
+
+\benum
+  \item Use the "poly()" function to fit a cubic polynomial regression to predict "nox" using "dis". Report the regression output, and plot the resulting data and polynomial fits.
+
+\item Plot the polynomial fits for a range of different polynomial degrees (say, from 1 to 10), and report the associated residual sum of squares.
+
+\item Perform cross-validation or another approach to select the optimal degree for the polynomial, and explain your results.
+
+\item Use the "bs()" function to fit a regression spline to predict "nox" using "dis". Report the output for the fit using four degrees of freedom. How did you choose the knots ? Plot the resulting fit.
+
+
+\item Now fit a regression spline for a range of degrees of freedom, and plot the resulting fits and report the resulting RSS. Describe the results obtained.
+
+\item Perform cross-validation or another approach in order to select the best degrees of freedom for a regression spline on this data. Describe your results.
+
+
+\eenum
+
+\item \textbf{Exercises, Coding}
+\benum
+  \item
+\eenum
+
+----------------------------------------------------
+\eenum
+
+# Appendix I
+
+## polyreg, an Alternative to Neural Networks
+
+[r-bloggers: neural networks are essentially polynomial regression](https://www.r-bloggers.com/neural-networks-are-essentially-polynomial-regression/)
+
+[polyreg on github](https://github.com/matloff/polyreg)
+
+```{r child = 'polyreg.Rmd', eval=FALSE}
+```
+
+# Appendix II
+
+## Reparameterization of Splines
+
+### Export fitted regression splines (constructed by 'bs' or 'ns') as piecewise polynomials
+
+Take for instance the following one-knot, degree two, spline:
+
+```{r}
+
+library(splines)
+library(ISLR)
+fit.spline <- lm(wage~bs(age, knots=c(42), degree=2), data=Wage)
+summary(fit.spline)
+
+```
+
+These coefficients are difficult to interpret.
+
+
+```{r}
+## make you have `devtools` package avaiable
+#devtools::install_github("ZheyuanLi/SplinesUtils")
+
+library(SplinesUtils)
+
+library(splines)
+library(ISLR)
+fit.spline <- lm(wage ~ bs(age, knots=c(42), degree=2), data = Wage)
+
+ans1 <- RegBsplineAsPiecePoly(fit.spline, "bs(age, knots = c(42), degree = 2)")
+ans1
+#2 piecewise polynomials of degree 2 are constructed!
+#Use 'summary' to export all of them.
+#The first 2 are printed below.
+#8.2e-15 + 4.96 * (x - 18) + 0.0991 * (x - 18) ^ 2
+#61.9 + 0.2 * (x - 42) + 0.0224 * (x - 42) ^ 2
+
+## coefficients as a matrix
+ans1$PiecePoly$coef
+#              [,1]        [,2]
+#[1,]  8.204641e-15 61.91542748
+#[2,]  4.959286e+00  0.20033307
+#[3,] -9.914485e-02 -0.02240887
+
+## knots
+ans1$knots
+
+```
+
+
+The function defaults to parametrize piecewise polynomials in shifted form (see ?PiecePoly). You can set shift = FALSE for a non-shifted version.
+
+```{r}
+ans2 <- RegBsplineAsPiecePoly(fit.spline, "bs(age, knots = c(42), degree = 2)",
+                              shift = FALSE)
+ans2
+#2 piecewise polynomials of degree 2 are constructed!
+#Use 'summary' to export all of them.
+#The first 2 are printed below.
+#-121 + 8.53 * x + 0.0991 * x ^ 2
+#14 + 2.08 * x + 0.0224 * x ^ 2
+
+## coefficients as a matrix
+ans2$PiecePoly$coef
+#              [,1]        [,2]
+#[1,] -121.39007747 13.97219046
+#[2,]    8.52850050  2.08267822
+#[3,]   -0.09914485 -0.02240887
+
+```
+
+
+You can predict the splines with predict.
+
+```{r}
+xg <- 18:80
+yg1 <- predict(ans1, xg)  ## use shifted form
+yg2 <- predict(ans2, xg)  ## use non-shifted form
+all.equal(yg1, yg2)
+#[1] TRUE
+
+```
+
+
+But since there is an intercept in the model, the predicted values would differ from model prediction by the intercept.
+
+```{r}
+yh <- predict(fit.spline, data.frame(age = xg))
+intercept <- coef(fit.spline)[[1]]
+all.equal(yh, yg1 + intercept, check.attributes = FALSE)
+#[1] TRUE
+
+```
+
+
+

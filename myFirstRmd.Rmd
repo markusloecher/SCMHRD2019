@@ -1,0 +1,35 @@
+---
+title: "Self Explanatory Markdown"
+author: "M Loecher"
+date: "always today"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+n=5
+```
+
+The sample size was `r n`
+
+
+$$
+\bar{x} = \sum_{i=1}^n{(x_i - \mu)^2}
+$$
+We made the following assumptions 
+
+1. Independence of Events
+2. Constant Variance
+
+
+```{r}
+plot(pressure)
+```
+
+
+
+

@@ -1,0 +1,441 @@
+---
+title: "Nonlinear Modeling II"
+author: "M Loecher"
+output:
+   pdf_document:
+     extra_dependencies: ["pdfpages"]
+     toc: true
+     toc_depth: 2
+     includes:
+        in_header: header.tex
+classoption: landscape
+header-includes: \usepackage{amsmath}
+subtitle: Generalized Additive Models (close to chapter 7, ISLR)
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE)
+
+#library(gamair)
+data(mpg, package="gamair")
+library(lubridate)
+library(knitr)
+#library(dygraphs)
+library(xts)
+library(ISLR)
+data(Auto)
+data(mcycle,package="MASS")
+library(splines)
+library(boot)
+library(mgcv)
+```
+
+\includepdf[pages={2}]{../datacamp/chapter1.pdf}
+
+# Pros and Cons of GAMs
+
+\benum
+
+\item[+] GAMs allow us to fit a non-linear $f_j$ to each $X_j$, so that we can
+automatically model non-linear relationships that standard linear regression
+will miss. This means that we do not need to manually try
+out many different transformations on each variable individually.
+\item[+] The non-linear fits can potentially make more accurate predictions
+for the response Y .
+\item[+] Because the model is additive, we can still examine the effect of
+each $X_j$ on Y individually while holding all of the other variables
+fixed. Hence if we are interested in inference, GAMs provide a useful
+representation.
+
+\item[+] The smoothness of the function $f_j$ for the variable $X_j$ can be summarized
+via degrees of freedom.
+
+\item[-] The main limitation of GAMs is that the model is restricted to be
+additive. With many variables, important interactions can be missed.
+However, as with linear regression, we can manually add interaction
+terms to the GAM model by including additional predictors of the
+form $X_j × X_k$. In addition we can add low-dimensional interaction
+functions of the form $f_{jk}(X_j,X_k)$ into the model; such terms can
+be fit using two-dimensional smoothers such as local regression, or
+two-dimensional splines (not covered here).
+
+\eenum
+
+\includepdf[pages={3-7,10-15}]{../datacamp/chapter1.pdf}
+
+## [GAM Exercises part I](exercises/GAM-Exercises-I.html)
+
+# Multiple Smooths
+
+A true understanding of the label *additive* only comes in the context of multiple variables. A GAM is an extension of the multiple linear regression model which allows for non-linear relationships between each feature and the response. We simply replace each linear component $\beta_j x_{ij}$ with a (smooth) nonlinear function $f_j( x_{ij} )$ so that the model becomes:
+
+$$
+\label{eq:gamDef}
+y_i = \beta_0 + f_1( x_{i1} ) + f_2( x_{i2} ) \ldots + f_p( x_{ip} ) + \epsilon_i = \beta_0 + \sum_{j=1}^p{f_j( x_{ij} )}  + \epsilon_i
+$$
+
+## Our Working Dataset: mpg
+
+```{r, results = 'asis',echo=FALSE}
+knitr::kable(head(mpg[,-c(1:2)]), format = "latex")
+```
+
+```{r}
+mod2 <- gam(hw.mpg ~ s(weight) + s(length) , data = mpg, method = "REML")
+```
+
+```{r, fig.width=10, echo=FALSE}
+plot(mod2, page = 1, shade = TRUE, residuals = TRUE, cex=1.2,shift = coef(mod2)[1], rug=FALSE)
+```
+
+### Linear Terms I
+
+```{r,eval=FALSE}
+mod3 <- gam(hw.mpg ~ s(weight) + length , data = mpg, method = "REML")
+```
+
+```{r, fig.width=10, echo=FALSE}
+#mod3 <- gam(hw.mpg ~ s(weight) + s(length,k=0,fx=TRUE) , data = mpg, method = "REML")
+mod3 <- gam(hw.mpg ~ s(weight) + s(length,sp=1000) , data = mpg, method = "REML")
+plot(mod3, page = 1, shade = TRUE, residuals = TRUE, cex=1.2,shift = coef(mod3)[1], rug=FALSE)
+```
+### Linear Terms II
+
+```{r,eval=TRUE}
+mod4 <- gam(hw.mpg ~ s(weight) + s(length,sp=100) , data = mpg, method = "REML")
+```
+
+```{r, fig.width=10, echo=FALSE}
+#mod3 <- gam(hw.mpg ~ s(weight) + s(length,k=0,fx=TRUE) , data = mpg, method = "REML")
+
+plot(mod4, page = 1, shade = TRUE, residuals = TRUE, cex=1.2,shift = coef(mod4)[1], rug=FALSE)
+```
+### Categorical Terms I
+
+```{r,eval=TRUE}
+mod5 <- gam(hw.mpg ~ s(weight) + fuel , data = mpg, method = "REML")
+```
+
+```{r, fig.width=10, echo=FALSE}
+#mod3 <- gam(hw.mpg ~ s(weight) + s(length,k=0,fx=TRUE) , data = mpg, method = "REML")
+
+plot(mod5, page = 1, shade = TRUE, residuals = TRUE,pch=1, cex=1,shift = coef(mod5)[1], rug=FALSE, all.terms = TRUE)
+```
+
+\LARGE
+
+In this model the nonlinear effects of weight is the same for both fuel types. (You coulod view this as the analogy of the fixed slope, different intercepts in linear models!)
+
+
+
+### Categorical Terms II
+
+We can also specify different smooths for different levels of teh categorical variable! ("a factor smooth interaction")
+
+```{r,eval=TRUE}
+mod6 <- gam(hw.mpg ~ s(weight, by= fuel) + fuel, data = mpg, method = "REML")
+```
+
+```{r, fig.width=10, echo=FALSE}
+#mod3 <- gam(hw.mpg ~ s(weight) + s(length,k=0,fx=TRUE) , data = mpg, method = "REML")
+
+plot(mod6, page = 1, shade = TRUE, residuals = TRUE, cex=2,shift = coef(mod6)[1], rug=FALSE)
+```
+
+
+## [GAM Exercises part II](exercises/GAM-Exercises-II.html)
+
+# Interpreting GAM outputs
+
+```{r}
+mod_city4 <- gam(hw.mpg ~ s(weight) +  s(price) + s(rpm) + s(comp.ratio) + s(width) 
+                 + fuel , data = mpg, method = "REML")
+summary(mod_city4)
+
+```
+
+#### Effective Degrees of Freedom
+
+```{r, fig.width=10, echo=FALSE}
+par(mfrow=c(1,2))
+plot(mod_city4, select = 1, shade = TRUE, residuals = TRUE, cex=1.2,shift = coef(mod_city4)[1], rug=FALSE)
+plot(mod_city4, select = 4, shade = TRUE, residuals = TRUE, cex=1.2,shift = coef(mod_city4)[1], rug=FALSE)
+```
+
+
+#### Significance of Smooth Terms
+
+Overall significance of smooth. p-values are approximate.
+
+One way to interpret significance: you cannot draw a horizontal line through the 95% confidence interval.
+
+```{r, fig.width=10, echo=FALSE}
+par(mfrow=c(1,2))
+plot(mod_city4, select = 1, shade = TRUE, residuals = TRUE, cex=1.2,shift = coef(mod_city4)[1], rug=FALSE)
+abline(h= coef(mod_city4)[1],col=2)
+plot(mod_city4, select = 2, shade = TRUE, residuals = TRUE, cex=1.2,shift = coef(mod_city4)[1])
+abline(h= coef(mod_city4)[1],col=2, rug=FALSE)
+```
+
+#### Significance and Effective Degress of Freedom
+
+Two separate concepts, one does not imply the other !
+
+```{r, results = 'asis',echo=FALSE}
+knitr::kable(summary(mod_city4)$s.table, format = "latex")
+```
+
+```{r, fig.width=10, echo=FALSE}
+par(mfrow=c(1,3))
+plot(mod_city4, select = 2, shade = TRUE, residuals = TRUE, cex=1.2,shift = coef(mod_city4)[1], rug=FALSE)
+abline(h= coef(mod_city4)[1],col=2)
+plot(mod_city4, select = 3, shade = TRUE, residuals = TRUE, cex=1.2,shift = coef(mod_city4)[1], rug=FALSE)
+abline(h= coef(mod_city4)[1],col=2)
+plot(mod_city4, select = 4, shade = TRUE, residuals = TRUE, cex=1.2,shift = coef(mod_city4)[1], rug=FALSE)
+abline(h= coef(mod_city4)[1],col=2)
+```
+
+
+
+# Visualizing GAMs
+
+```{r}
+gam_mod <- gam(hw.mpg ~ s(weight) +  s(rpm) + s(price) + s(comp.ratio) , data = mpg, method = "REML")
+```
+
+
+```{r, fig.width=10}
+plot(gam_mod, pages=1, rug=FALSE)
+```
+
+
+```{r, fig.width=10}
+par(mfrow=c(2,2))
+plot(gam_mod, select = 1, shade = TRUE, residuals = TRUE)
+plot(gam_mod, select = 1, shade = TRUE, residuals = TRUE, shade.col ="lightblue")
+plot(gam_mod, select = 4, shade = TRUE, residuals = TRUE, shade.col ="lightblue", rug=FALSE,pch=1)
+plot(gam_mod, select = 4, shade = TRUE, residuals = TRUE, shade.col ="lightgreen", rug=FALSE,shift = coef(gam_mod)[1])
+```
+
+
+```{r}
+plot(mod_city4, select = 1, shade = TRUE, residuals = TRUE, cex=1.2,shift = coef(mod_city4)[1], rug=FALSE)
+```
+
+# Model checking, Concurvity
+
+\includepdf[pages={26-31,34-}]{../datacamp/chapter2.pdf}
+
+
+
+# The gam library
+
+In order to fit more general sorts of GAMs, using smoothing splines
+or other components that cannot be expressed in terms of basis functions
+and then fit using least squares regression, we will need to use the gam
+library in R.
+
+## Smoothing/number of knots specified by user
+
+A "simpler" version of mgcv. (no Bayesian smoothing)
+Note the slightly different syntax though (e.g., *df=4*, instead of *k=4*) !!
+
+The `s()` function, which is part of the gam library, is used to indicate that
+we would like to use a smoothing spline. We specify that the function of
+year should have 4 degrees of freedom, and that the function of *age* will
+have 5 degrees of freedom. Since *education* is qualitative, we leave it as is,
+and it is converted into four dummy variables. We use the `gam()` function in
+order to fit a GAM using these components. 
+
+```{r, fig.width=10,out.width='.95\\linewidth'}
+gam1 <- lm(wage ~ ns(year, 4) + ns(age, 5) + education, data = Wage)
+
+detach("package:mgcv", unload=TRUE)#avoid name space collision!
+library(gam)
+gam.m3 <- gam(wage ~ s(year, 4) + s(age, 5) + education, data = Wage)
+par(mfrow = c(1, 3));plot(gam.m3, se = TRUE, col = "blue")
+
+```
+
+Conveniently, even though gam1 is not of class gam but rather of class `lm`, we can still use `plot.gam()` on it. 
+
+```{r, fig.width=10,out.width='.95\\linewidth'}
+par(mfrow = c(1, 3));plot.Gam(gam1, se = TRUE, col = "red")
+```
+
+In these plots, the function of year looks rather linear. We can perform a
+series of ANOVA tests in order to determine which of these three models is
+best: a GAM that excludes year (M1), a GAM that uses a linear function
+of year (M2), or a GAM that uses a spline function of year (M3).
+
+```{r}
+gam.m1 <- gam(wage ~ s(age, 5) + education, data = Wage)
+gam.m2 <- gam(wage~ year + s(age, 5) + education, data = Wage)
+anova(gam.m1, gam.m2, gam.m3, test = "F")
+```
+
+We find that there is compelling evidence that a GAM with a linear function
+of year is better than a GAM that does not include year at all
+(p-value=0.00014). However, there is no evidence that a non-linear function
+of year is needed (p-value=0.349). In other words, based on the results
+of this ANOVA, M2 is preferred.
+The summary() function produces a summary of the gam fit.
+
+```{r}
+summary(gam.m3)
+```
+
+The p-values for *year* and *age* correspond to a null hypothesis of a linear
+relationship versus the alternative of a non-linear relationship. The large
+p-value for *year* reinforces our conclusion from the ANOVA test that a linear
+function is adequate for this term. However, there is very clear evidence
+that a non-linear term is required for *age*.
+We can make predictions from *gam* objects, just like from lm objects,
+using the predict() method for the class *gam*. Here we make predictions on
+the training set.
+
+```{r}
+preds <- predict(gam.m2, newdata = Wage)
+```
+
+### Logistic regression
+
+In order to fit a logistic regression GAM, we once again use the `I()` function
+in constructing the binary response variable, and set `family=binomial`.
+
+
+```{r, fig.width=10,out.width='.95\\linewidth'}
+gam.lr.s <- gam(I(wage > 250) ~ year + s(age, df = 5) + education,
+                family = binomial, data = Wage, 
+                subset = (education != "1. < HS Grad"))
+par(mfrow = c(1, 3)); plot(gam.lr.s, se = TRUE, col = "green")
+```
+
+# Exercises
+
+\benum
+
+\item \textbf{Exercises, Coding}
+
+This question relates to the "College" data set.
+
+\benum
+
+\item Split the data into a training set and a test set. Using out-of-state tuition as the response and the other variables as the predictors, perform forward stepwise selection on the training set in order to identify a satisfactory model that uses just a subset of the predictors.
+
+```{r, echo = TRUE, fig.width=10,out.width='.95\\linewidth'}
+library(leaps)
+set.seed(1)
+attach(College)
+train <- sample(length(Outstate), length(Outstate) / 2)
+test <- -train
+College.train <- College[train, ]
+College.test <- College[test, ]
+fit <- regsubsets(Outstate ~ ., data = College.train, nvmax = 17, method = "forward")
+fit.summary <- summary(fit)
+par(mfrow = c(1, 3))
+plot(fit.summary$cp, xlab = "Number of variables", ylab = "Cp", type = "l")
+min.cp <- min(fit.summary$cp)
+std.cp <- sd(fit.summary$cp)
+abline(h = min.cp + 0.2 * std.cp, col = "red", lty = 2)
+abline(h = min.cp - 0.2 * std.cp, col = "red", lty = 2)
+plot(fit.summary$bic, xlab = "Number of variables", ylab = "BIC", type='l')
+min.bic <- min(fit.summary$bic)
+std.bic <- sd(fit.summary$bic)
+abline(h = min.bic + 0.2 * std.bic, col = "red", lty = 2)
+abline(h = min.bic - 0.2 * std.bic, col = "red", lty = 2)
+plot(fit.summary$adjr2, xlab = "Number of variables", ylab = "Adjusted R2", type = "l", ylim = c(0.4, 0.84))
+max.adjr2 <- max(fit.summary$adjr2)
+std.adjr2 <- sd(fit.summary$adjr2)
+abline(h = max.adjr2 + 0.2 * std.adjr2, col = "red", lty = 2)
+abline(h = max.adjr2 - 0.2 * std.adjr2, col = "red", lty = 2)
+```
+
+*Cp, BIC and adjr2 show that size 6 is the minimum size for the subset for which the scores are within 0.2 standard devitations of optimum.*
+
+```{r, echo = TRUE}
+fit <- regsubsets(Outstate ~ ., data = College, method = "forward")
+coeffs <- coef(fit, id = 6)
+names(coeffs)
+```
+
+\item Fit a GAM on the training data, using out-of-state tuition as the response and the features selected in the previous step as the predictors. Plot the results, and explain your findings.
+
+\item Evaluate the model obtained on the test set, and explain the results obtained.
+
+\item For which variables, if any, is there evidence of a non-linear relationship with the response ?
+
+\eenum
+
+
+\eenum
+
+## [GAM Exercises part III](exercises/GAM-Exercises-CrimeData.html)
+
+\newpage
+# Appendix I
+
+## Locations of knots
+
+For penalized regression spline, the exact locations are not important, as long as:
+
+* k is adequately big;
+* the spread of knots has good, reasonable coverage.
+
+By default:
+
+* natural cubic regression spline bs = 'cr' places knots by quantile;
+* B-splines family (bs = 'bs', bs = 'ps', bs = 'ad') place knots evenly.
+
+Compare the following:
+
+```{r, fig.width=10,out.width='.95\\linewidth'}
+library(mgcv)
+
+## toy data
+set.seed(0); x <- sort(rnorm(400, 0, pi))  ## note, my x are not uniformly sampled
+set.seed(1); e <- rnorm(400, 0, 0.4)
+y0 <- sin(x) + 0.2 * x + cos(abs(x))
+y <- y0 + e
+
+## fitting natural cubic spline
+cr_fit <- gam(y ~ s(x, bs = 'cr', k = 20))
+cr_knots <- cr_fit$smooth[[1]]$xp  ## extract knots locations
+
+## fitting B-spline
+bs_fit <- gam(y ~ s(x, bs = 'bs', k = 20))
+bs_knots <- bs_fit$smooth[[1]]$knots  ## extract knots locations
+
+## summary plot
+par(mfrow = c(1,2))
+plot(x, y, col= "grey", main = "natural cubic spline");
+lines(x, cr_fit$linear.predictors, col = 2, lwd = 2)
+abline(v = cr_knots, lty = 2)
+plot(x, y, col= "grey", main = "B-spline");
+lines(x, bs_fit$linear.predictors, col = 2, lwd = 2)
+abline(v = bs_knots, lty = 2)
+```
+
+
+## Setting your own knots locations:
+
+You can also provide your customized knots locations via the knots argument of gam() (yes, knots are not fed to s(), but to gam()). For example, you can do evenly spaced knots for cr:
+
+```{r}
+xlim <- range(x)  ## get range of x
+myfit <- gam(y ~ s(x, bs = 'cr', k =20),
+         knots = list(x = seq(xlim[1], xlim[2], length = 20)))
+```
+
+
+Now you can see that:
+
+```{r}
+my_knots <- myfit$smooth[[1]]$xp
+plot(x, y, col= "grey", main = "my knots");
+lines(x, myfit$linear.predictors, col = 2, lwd = 2)
+abline(v = my_knots, lty = 2)
+```
+
+
+

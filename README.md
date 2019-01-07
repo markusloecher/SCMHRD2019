@@ -4,7 +4,7 @@ About this workshop
 Goals
 -----
 
-This 3 day workshop is intended to empower participants to perform serious nonlinear statistical modeling with the R statistical software. It is an attempt to provide the solid foundation needed to begin using R in your data analysis and also give you an introduction to machine learning and data science. I assume that you are familiar with linear regression and R.
+This 3 day workshop is intended to empower participants to perform serious nonlinear statistical modeling with the R statistical software. I assume that you are familiar with linear regression and R.
 
 Agenda
 ======

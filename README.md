@@ -52,7 +52,7 @@ When you start RStudio you should see 3 panels, one of them the *Console* where 
 if (!require(pacman)) install.packages("pacman")
 library(pacman)
 
-p_load(gamair, lubridate,knitr,dygraphs,xts,ISLR,splines,boot,mgcv,ggplot2,scales,partykit, install = TRUE)
+p_load(gamair, lubridate,knitr,dygraphs,xts,ISLR,splines,gam,boot,mgcv,ggplot2,scales,partykit, install = TRUE)
 ```
 
 I would decline the compilation from source.

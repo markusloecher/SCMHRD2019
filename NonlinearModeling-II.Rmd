@@ -9,6 +9,7 @@ output:
      includes:
         in_header: header.tex
 classoption: landscape
+fontsize: 16pt
 header-includes: \usepackage{amsmath}
 subtitle: Generalized Additive Models (close to chapter 7, ISLR)
 ---
@@ -20,7 +21,7 @@ knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE)
 data(mpg, package="gamair")
 library(lubridate)
 library(knitr)
-#library(dygraphs)
+library(mgcv)
 library(xts)
 library(ISLR)
 data(Auto)
@@ -28,7 +29,15 @@ data(mcycle,package="MASS")
 library(splines)
 library(boot)
 library(mgcv)
+library(kableExtra)
+
 ```
+
+
+\fontsize{16}{22}
+\fontseries{b}
+\selectfont
+
 
 \includepdf[pages={2}]{../datacamp/chapter1.pdf}
 
@@ -61,7 +70,49 @@ two-dimensional splines (not covered here).
 
 \eenum
 
-\includepdf[pages={3-7,10-15}]{../datacamp/chapter1.pdf}
+```{r echo=FALSE}
+set.seed(1)
+N=250
+x = seq(0,1,length=N)
+y = 10 - 6*x + (8-7*x)*sin(4*pi*x) + rnorm(N,s=2)
+#fit = gam(y~s(x,k=10))
+#summary(fit)
+```
+
+### Syntax I
+
+```{r}
+fit = gam(y~s(x,sp=0.1))
+```
+
+
+
+Choosing the Right Smoothing Parameter (Remember Goldilocks and the three bears?)
+
+
+```{r, fig.width=10, echo=FALSE}
+par(mfrow=c(1,3))
+#plot(y~x,pch=20,col="darkgray");grid()
+lambda = c(100,0.00001,0.01)
+lambdaIs = c("too large","too small","just right")
+for (i in 1:3){
+  l = lambda[i]
+  if (l<0.01) k=80 else k = 10
+  fit = gam(y~s(x,sp=l,k=k))
+  plot(fit, shade = TRUE, residuals = FALSE, shift = coef(fit)[1], rug=FALSE,shade.col=rgb(0,0,0.8,0.2),lwd=2.5,col="purple",ylab="",main=bquote(lambda ~ .(lambdaIs[i])), cex.main=2);grid()
+  points(x,y,pch=20, cex=2,col="darkgray")  
+}
+
+```
+
+### Syntax II
+
+```{r}
+fit = gam(y~s(x,k=4))
+```
+
+
+\includegraphics[height=9cm]{figures/NumBasisFunctions.pdf}
 
 ## [GAM Exercises part I](exercises/GAM-Exercises-I.html)
 
@@ -77,8 +128,14 @@ $$
 ## Our Working Dataset: mpg
 
 ```{r, results = 'asis',echo=FALSE}
-knitr::kable(head(mpg[,-c(1:2)]), format = "latex")
+#knitr::kable(head(mpg[,-c(1:2)]), format = "latex")
+knitr::kable(head(mpg[,-c(1:2)]), "latex", booktabs = T) %>%
+kable_styling(latex_options = "striped")
 ```
+
+
+### Syntax III
+
 
 ```{r}
 mod2 <- gam(hw.mpg ~ s(weight) + s(length) , data = mpg, method = "REML")
@@ -130,7 +187,7 @@ In this model the nonlinear effects of weight is the same for both fuel types. (
 
 ### Categorical Terms II
 
-We can also specify different smooths for different levels of teh categorical variable! ("a factor smooth interaction")
+We can also specify different smooths for different levels of the categorical variable! ("a factor smooth interaction")
 
 ```{r,eval=TRUE}
 mod6 <- gam(hw.mpg ~ s(weight, by= fuel) + fuel, data = mpg, method = "REML")
@@ -173,8 +230,8 @@ One way to interpret significance: you cannot draw a horizontal line through the
 par(mfrow=c(1,2))
 plot(mod_city4, select = 1, shade = TRUE, residuals = TRUE, cex=1.2,shift = coef(mod_city4)[1], rug=FALSE)
 abline(h= coef(mod_city4)[1],col=2)
-plot(mod_city4, select = 2, shade = TRUE, residuals = TRUE, cex=1.2,shift = coef(mod_city4)[1])
-abline(h= coef(mod_city4)[1],col=2, rug=FALSE)
+plot(mod_city4, select = 2, shade = TRUE, residuals = TRUE, cex=1.2,shift = coef(mod_city4)[1], rug=FALSE)
+abline(h= coef(mod_city4)[1],col=2)
 ```
 
 #### Significance and Effective Degress of Freedom
@@ -372,6 +429,46 @@ names(coeffs)
 
 ## [GAM Exercises part III](exercises/GAM-Exercises-CrimeData.html)
 
+# Autocorrelations
+
+GAM or MLR have assumptions in a model that errors (residuals) are identically and independently distributed (i.i.d.). In the case of the time series regression, it is very strong assumption, which is here, logically, not fulfilled. Present time series values are highly correlated with past values, so errors of the model will be correlated too. This phenomenon is called an autocorrelation. This implies that estimated regression coefficients and residuals of a model might be negatively biased, which also implies that previously computed p-values of statistical tests or confidence intervals are wrong.
+
+How can we handle this situation? By inclusion of autoregressive model (AR) for errors in our model. So we have the model with the term for errors like this:
+$$
+y_i = \beta \cdot X + \epsilon_i, \mbox{      } \epsilon_i = \phi \epsilon_{i-1} + v_i 
+$$
+
+
+where the second equation is a classical AR(1) process and $\phi$
+
+is an unknown autoregressive coefficient to be estimated. Errors can be also nested within a week, which is in our case more appropriate, because of the double seasonal character of our time series. You can add also higher orders of AR process and also MA (moving average) model. You can read more about estimation and modeling of this kind of models in an excellent book by Box, Jenkins, and Reinsel: Time Series Analysis.
+
+It’s possible to add correlation term for errors with function gamm, which stands for GAM mixture models. It calls the `lme` function from package `nlme`. 
+
+```{r, echo=TRUE, fig.width=10, fig.height=8}
+detach("package:gam", unload=TRUE)#avoid name space collision!
+library(mgcv)
+## now an example with autocorrelated errors....
+n <- 200;sig <- 2
+x <- 0:(n-1)/(n-1)
+f <- 0.2*x^11*(10*(1-x))^6+10*(10*x)^3*(1-x)^10
+e <- rnorm(n,0,sig)
+for (i in 2:n) e[i] <- 0.6*e[i-1] + e[i]
+y <- f + e
+op <- par(mfrow=c(2,2))
+## Fit model with AR1 residuals
+b <- gamm(y~s(x,k=20),correlation=corAR1())
+plot(b$gam);lines(x,f-mean(f),col=2)
+## Raw residuals still show correlation, of course...
+acf(residuals(b$gam),main="raw residual ACF")
+## But standardized are now fine...
+acf(residuals(b$lme,type="normalized"),main="standardized residual ACF")
+## compare with model without AR component...
+b <- gam(y~s(x,k=20))
+plot(b);lines(x,f-mean(f),col=2)
+```
+
+
 \newpage
 # Appendix I
 
@@ -438,4 +535,43 @@ abline(v = my_knots, lty = 2)
 ```
 
 
+# Appendix II, REML
 
+REML stands for *REstricted Maximum Likelihood*.
+
+
+The discussion below is relatively technical and readers may want to consult Simon Wood's excellent ["Generalized Additive Models: An Introduction with R"](https://www.crcpress.com/Generalized-Additive-Models-An-Introduction-with-R-Second-Edition/Wood/p/book/9781498728331) while reading.
+
+## Smoothing parameter estimation in `mgcv`
+
+`mgcv` has a number of options for selecting the smoothness of terms in the model. Smoothness selection method is specified via the `method=` argument and has the following options: `"GCV.Cp"`, `"GACV.Cp"`, `"REML"`, `"P-REML"`, `"ML"` and `"P-ML"`. These methods can be separated into two groups: "prediction error" (`"GCV.Cp"` and `"GACV.Cp"`) and "likelihood" (`"REML"`, `"P-REML"`, `"ML"` and `"P-ML"`). Here we'll just address `"GCV.Cp"` vs. `"REML"` (though similar arguments can be levelled in favour of `"ML"` vs `"GCV.Cp"`. `mgcv` uses `"GCV.Cp"` as a default, though this is mainly for backwards compatibility (Simon Wood, pers. comm.).
+
+## Theory
+
+Both REML and GCV try to do the same thing: make the smooths in your model just wiggly enough and no wigglier. It has been shown that GCV will select optimal smoothing parameters (in the sense of low prediction error) when the sample size is infinite. In practice there is presumably some sample size at which this asymptotic result kicks in, but few of us have data of that size. At smaller (finite) sample sizes GCV can develop multiple minima making optimisation difficult and therefore tends to give more variable estimates of the smoothing parameter. GCV also tends to undersmooth (i.e., smooths are more wiggly than they should be), as it penalizes overfit weakly (which makes sense for a prediction error based critera, where you want your model to fit your data well). This was shown in work by Phil Reiss and Todd Ogden (2009) as well as Simon Wood (2011). They also showed that REML (and ML, marginal likelihood) penalize overfitting more and therefore have more prounounced optima, leading to fewer optimisation issues and less variable estimates of the smoothing parameter.
+
+This is best illustrated in this figure from Wood (2011) which shows the (log) smoothing parameter vs. REML and GCV. The ticks on the horizontal axis show where the optimum smoothing parameter lies for each example data set (profile of the REML/GCV criteria shown as lines). The REML ticks are close together and the lines all look similar. For GCV this is not the case.
+
+![gcv and reml scores as functions of the smoothing parameter](figures/gcvreml.png)
+
+Section 1.1 of Wood (2011) gives an overview of these issues, though the rest of the paper is somewhat technical.
+
+## Practice
+
+In practice I've analysed multiple datasets using both REML and GCV and in some cases have seen very different results when it comes to model and term selection. If GCV is prone to undersmoothing at finite sample sizes, then we will end up fitting models that are more wiggly than we want. Overfitting is surely something we want to avoid. It is not clear how many datasets (or what particular type of data) is vulnerable to this issue, but we (Distance Development Team) thought it best to switch to REML by default to avoid potential overfitting and highly variable smoothing parameter estimates.
+
+
+## Model comparison
+
+Note that moving to REML, we need to be careful about model comparison. Models fitted with REML cannot be compared by their REML scores when their unpenalized components are different. In practice this means that models that use a shrinkage basis (e.g., `"ts"` or `"cs"`) for all terms in the model or that use `select=TRUE` are fine but other models are not.
+
+If marginal likelihood (ML) is used, we can compare those scores.
+
+One can compare AIC (extracted using the `AIC()` function in R) of models fitted with REML or ML (or GCV), though obviously this is not the only model selection step!
+
+
+## References
+
+- Reiss, P.T. and Ogden, R.T. (2009) Smoothing parameter selection for a class of semiparametric linear models. Journal of the Royal Statistical Society: Series B (Statistical Methodology), 71, 505–523. [pdf](https://works.bepress.com/phil_reiss/1/)
+- Wood, S.N. (2006) Generalized Additive Models. CRC Press.
+- Wood, S.N. (2011) Fast stable restricted maximum likelihood and marginal likelihood estimation of semiparametric generalized linear models. Journal of the Royal Statistical Society: Series B (Statistical Methodology), 73, 3–36. [pdf](http://opus.bath.ac.uk/22707/1/Wood_JRSSB_2011_73_1_3.pdf)

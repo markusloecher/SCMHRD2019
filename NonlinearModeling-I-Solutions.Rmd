@@ -1,0 +1,291 @@
+---
+title: "Nonlinear Modeling I, Solutions"
+author: "M Loecher"
+output:
+   pdf_document:
+     extra_dependencies: ["pdfpages"]
+     includes:
+        in_header: header.tex
+classoption: landscape
+subtitle: Splines and Polynomial Regression (close to chapter 7, ISLR)
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE)
+
+#library(gamair)
+#data(mpg)
+library(lubridate)
+library(knitr)
+#library(dygraphs)
+library(xts)
+library(ISLR)
+library(boot)
+library(splines)
+data(Auto)
+data(mcycle,package="MASS")
+```
+
+
+
+\benum
+
+\item Exercises
+
+  \benum
+    \item  Compare fits using `poly` with "manual" polynomials
+    \item Use `anova` to find the best degree
+    \item Produce an analogous plot for the *Auto* data.
+  \eenum
+
+
+```{r, results="asis"}
+attach(Wage)
+fit <- lm(wage ~ poly(age, 4), data = Wage)
+coef(summary(fit))
+
+fit2 <- lm(wage ~ poly(age, 4, raw =TRUE), data = Wage)
+coef(summary(fit2))
+
+fit2a <- lm(wage ~ age + I(age^2) + I(age^3) + I(age^4), data = Wage)
+coef(fit2a)
+
+fit2b <- lm(wage ~ cbind(age, age^2, age^3, age^4), data = Wage)
+coef(fit2b)
+
+agelims <- range(age)
+age.grid <- seq(from = agelims[1], to = agelims[2])
+preds <- predict(fit, newdata = list(age = age.grid), se = TRUE)
+
+
+preds2 <- predict(fit2, newdata = list(age = age.grid), se = TRUE)
+max(abs(preds$fit - preds2$fit))
+
+```
+
+```{r, results="asis"}
+fit.1 <- lm(wage ~ age, data = Wage)
+fit.2 <- lm(wage ~ poly(age, 2), data = Wage)
+fit.3 <- lm(wage ~ poly(age, 3), data = Wage)
+fit.4 <- lm(wage ~ poly(age, 4), data = Wage)
+fit.5 <- lm(wage ~ poly(age, 5), data = Wage)
+anova(fit.1, fit.2, fit.3, fit.4, fit.5)
+
+coef(summary(fit.5))
+
+
+fit.1 <- lm(wage ~ education + age, data = Wage)
+fit.2 <- lm(wage ~ education + poly(age,2), data = Wage)
+fit.3 <- lm(wage ~ education + poly(age,3), data = Wage)
+anova(fit.1, fit.2, fit.3)
+```
+
+\item Exercise
+
+Complete the 2nd plot
+
+\newpage
+\item \textbf{Exercises, Coding}
+
+Fit cubic and natural cubic splines to the motorcycle data 
+
+\benum
+    \item with prespecified knots
+    \item with knots at uniform quantiles of the data
+    \item How would you decide on the optimal knots ?
+\eenum
+
+\newpage
+\item \textbf{Exercises, Conceptual}
+
+It was mentioned in the chapter that a cubic regression spline with one knot at $\xi$ can be obtained using a basis of the form $x$; $x^2$, $x^3$, $(x - \xi)^3_+$, where $(x - \xi)^3_+ = (x - \xi)^3$ if $x > \xi$ and equals $0$ otherwise. We will now show that a function of the form
+\[f(x) = \beta_0 + \beta_1x + \beta_2x^2 + \beta_3x^3 + \beta_4(x - \xi)^3_+\]
+is indeed a cubic regression spline, regardless of the values of $\beta_0,\beta_1,\beta_2,\beta_3,\beta_4$.
+
+  \benum
+    \item Find a cubic polynomial
+\[f_1(x) = a_1 + b_1x + c_1x^2 + d_1x^3\]
+such that $f(x) = f_1(x)$ for all $x\le\xi$. Express $a_1,b_1,c_1,d_1$ in terms of $\beta_0,\beta_1,\beta_2,\beta_3,\beta_4$.
+
+*For $x\le\xi$, we have
+\[f(x) = \beta_0 + \beta_1x + \beta_2x^2 + \beta_3x^3,\]
+so we take $a_1 = \beta_0$, $b_1 = \beta_1$, $c_1 = \beta_2$ and $d_1 = \beta_3$.*
+
+\item Find a cubic polynomial
+\[f_2(x) = a_2 + b_2x + c_2x^2 + d_2x^3\]
+such that $f(x) = f_2(x)$ for all $x>\xi$. Express $a_2,b_2,c_2,d_2$ in terms of $\beta_0,\beta_1,\beta_2,\beta_3,\beta_4$. We have now established that $f(x)$ is a piecewie polynomial.
+
+*For $x>\xi$, we have
+\[f(x) = \beta_0 + \beta_1x + \beta_2x^2 + \beta_3x^3 + \beta_4(x - \xi)^3 = (\beta_0 - \beta_4\xi^3) + (\beta_1 + 3\xi^2\beta_4)x + (\beta_2 - 3\beta_4\xi)x^2 + (\beta_3 + \beta_4)x^3,\]
+so we take $a_2 = \beta_0 - \beta_4\xi^3$, $b_2 = \beta_1 + 3\xi^2\beta_4$, $c_2 = \beta_2 - 3\beta_4\xi$ and $d_2 = \beta_3 + \beta_4$.*
+
+\item Show that $f_1(\xi) = f_2(\xi)$. That is $f(x)$ is continuous at $\xi$.
+
+*We have immediately that
+\[f_1(\xi) = \beta_0 + \beta_1\xi + \beta_2\xi^2 + \beta_3\xi^3\]
+and
+\[f_2(\xi) = (\beta_0 - \beta_4\xi^3) + (\beta_1 + 3\xi^2\beta_4)\xi + (\beta_2 - 3\beta_4\xi)\xi^2 + (\beta_3 + \beta_4)\xi^3 = \beta_0 + \beta_1\xi + \beta_2\xi^2 + \beta_3\xi^3.\]*
+
+\item Show that $f_1'(\xi) = f_2'(\xi)$. That is $f'(x)$ is continuous at $\xi$.
+
+*We also have immediately that
+\[f_1'(\xi) = \beta_1 + 2\beta_2\xi + 3\beta_3\xi^2\]
+and
+\[f_2'(\xi) = \beta_1 + 3\xi^2\beta_4 + 2(\beta_2 - 3\beta_4\xi)\xi + 3(\beta_3 + \beta_4)\xi^2 = \beta_1 + 2\beta_2\xi + 3\beta_3\xi^2.\]*
+\item Show that $f_1''(\xi) = f_2''(\xi)$. That is $f''(x)$ is continuous at $\xi$. Therefore, $f(x)$ is indeed a cubic spline.
+
+*We finally have that
+\[f_1''(\xi) = 2\beta_2 + 6\beta_3\xi\]
+and
+\[f_2''(\xi) = 2(\beta_2 - 3\beta_4\xi) + 6(\beta_3 + \beta_4)\xi = 2\beta_2 + 6\beta_3\xi.\]*
+     
+  \eenum
+\newpage
+\item \textbf{Exercises, Conceptual}
+
+Suppose that a curve $\hat{g}$ is computed to smoothly fit a set of $n$ points using the following formula
+\[\hat{g} = \arg\min_g\Biggl(\sum_{i=1}^n(y_i - g(x_i))^2 + \lambda\int[g^{(m)}(x)]^2dx\biggr),\]
+where $g^{(m)}$ represents the mth derivative of $g$ (and $g^{(0)} = g$). Provide example sketches of $\hat{g}$ in each of the following scenarios.
+
+\benum
+    \item $\lambda = \infty$, $m = 0$.
+
+*In this case $\hat{g} = 0$ because a large smoothing parameter forces $g^{(0)}(x)\rightarrow 0$.*
+
+   \item $\lambda = \infty$, $m = 1$.
+
+*In this case $\hat{g} = c$ because a large smoothing parameter forces $g^{(1)}(x)\rightarrow 0$.*
+
+  \item $\lambda = \infty$, $m = 2$.
+
+*In this case $\hat{g} = cx + d$ because a large smoothing parameter forces $g^{(2)}(x)\rightarrow 0$.*
+
+\item $\lambda = \infty$, $m = 3$.
+
+*In this case $\hat{g} = cx^2 + dx + e$ because a large smoothing parameter forces $g^{(3)}(x)\rightarrow 0$.*
+
+\item $\lambda = 0$, $m = 3$.
+
+*The penalty term doesn't play any role, so in this case $g$ is the interpolating spline.*
+
+\eenum
+\newpage
+\item \textbf{Exercises, Conceptual}
+
+consider two curves, $\hat{g}_1$ and $\hat{g}_2$, defined by
+\[\hat{g}_1 = \arg\min_g\Biggl(\sum_{i=1}^n(y_i - g(x_i))^2 + \lambda\int[g^{(3)}(x)]^2dx\biggr)\]
+\[\hat{g}_2 = \arg\min_g\Biggl(\sum_{i=1}^n(y_i - g(x_i))^2 + \lambda\int[g^{(4)}(x)]^2dx\biggr)\]
+where $g^{(m)}$ represents the mth derivative of $g$.
+
+\benum
+    \item As $\lambda\rightarrow\infty$, will $\hat{g}_1$ or $\hat{g}_2$ have the smaller training RSS ?
+
+*The smoothing spline $\hat{g}_2$ will probably have the smaller training RSS because it will be a higher order polynomial due to the order of the penalty term (it will be more flexible).*
+
+ \item As $\lambda\rightarrow\infty$, will $\hat{g}_1$ or $\hat{g}_2$ have the smaller test RSS ?
+
+*As mentioned above we expect $\hat{g}_2$ to be more flexible, so it may overfit the data. It will probably be $\hat{g}_1$ that have the smaller test RSS.*
+
+ \item For $\lambda = 0$, will $\hat{g}_1$ or $\hat{g}_2$ have the smaller training and test RSS ?
+
+*If $\lambda = 0$, we have $\hat{g}_1 = \hat{g}_2$, so they will have the same training and test RSS.*
+
+\eenum
+\newpage
+\item \textbf{Exercises, Coding}
+
+This question uses the variables "dis" (the weighted mean of distances to five Boston employment centers) and "nox" (nitrogen oxides concentration in parts per 10 million) from the "Boston" data. We will treat "dis" as the predictor and "nox" as the response.
+
+\benum
+  \item Use the "poly()" function to fit a cubic polynomial regression to predict "nox" using "dis". Report the regression output, and plot the resulting data and polynomial fits.
+
+```{r}
+library(MASS)
+set.seed(1)
+fit <- lm(nox ~ poly(dis, 3), data = Boston)
+summary(fit)
+dislims <- range(Boston$dis)
+dis.grid <- seq(from = dislims[1], to = dislims[2], by = 0.1)
+preds <- predict(fit, list(dis = dis.grid))
+plot(nox ~ dis, data = Boston, col = "darkgrey")
+lines(dis.grid, preds, col = "red", lwd = 2)
+```
+
+*We may conclude that all polynomial terms are significant.*
+
+\item Plot the polynomial fits for a range of different polynomial degrees (say, from 1 to 10), and report the associated residual sum of squares.
+
+```{r}
+rss <- rep(NA, 10)
+for (i in 1:10) {
+    fit <- lm(nox ~ poly(dis, i), data = Boston)
+    rss[i] <- sum(fit$residuals^2)
+}
+plot(1:10, rss, xlab = "Degree", ylab = "RSS", type = "l")
+```
+
+*It seems that the RSS decreases with the degree of the polynomial, and so is minimum for a polynomial of degree 10.*
+
+\item Perform cross-validation or another approach to select the optimal degree for the polynomial, and explain your results.
+
+```{r}
+deltas <- rep(NA, 10)
+for (i in 1:10) {
+    fit <- glm(nox ~ poly(dis, i), data = Boston)
+    deltas[i] <- cv.glm(Boston, fit, K = 10)$delta[1]
+}
+plot(1:10, deltas, xlab = "Degree", ylab = "Test MSE", type = "l")
+```
+
+*We may see that a polynomial of degree 4 minimizes the test MSE.*
+
+\item  Use the "bs()" function to fit a regression spline to predict "nox" using "dis". Report the output for the fit using four degrees of freedom. How did you choose the knots ? Plot the resulting fit.
+
+```{r}
+#fit2 <- lm(nox ~ bs(dis, knots = c(4, 7, 11)), data = Boston)
+fit2 <- lm(nox ~ bs(dis, knots =3), data = Boston)
+summary(fit2)
+pred2 <- predict(fit2, list(dis = dis.grid))
+plot(nox ~ dis, data = Boston, col = "darkgrey")
+lines(dis.grid, pred2, col = "red", lwd = 2)
+lines(dis.grid, preds, col = "green", lwd = 2)
+
+fit3 <- smooth.spline(Boston$dis, Boston$nox, cv = TRUE)
+lines(fit3, col = "blue", lwd = 2)
+#fit3$df
+#pred3 <- predict(fit3, list(dis = dis.grid))
+#lines(dis.grid, pred3, col = "blue", lwd = 2)
+
+```
+
+*We may conclude that all terms in spline fit are significant.*
+
+\item Now fit a regression spline for a range of degrees of freedom, and plot the resulting fits and report the resulting RSS. Describe the results obtained.
+
+```{r}
+rss <- rep(NA, 16)
+for (i in 3:16) {
+    fit <- lm(nox ~ bs(dis, df = i), data = Boston)
+    rss[i] <- sum(fit$residuals^2)
+}
+plot(3:16, rss[-c(1, 2)], xlab = "Degrees of freedom", ylab = "RSS", type = "l")
+```
+
+*We may see that RSS decreases until 14 and then slightly increases after that.*
+
+\item Perform cross-validation or another approach in order to select the best degrees of freedom for a regression spline on this data. Describe your results.
+
+```{r}
+cv <- rep(NA, 16)
+for (i in 3:16) {
+    fit <- glm(nox ~ bs(dis, df = i), data = Boston)
+    cv[i] <- cv.glm(Boston, fit, K = 10)$delta[1]
+}
+plot(3:16, cv[-c(1, 2)], xlab = "Degrees of freedom", ylab = "Test MSE", type = "l")
+```
+
+*Test MSE is minimum for 10 degrees of freedom.*
+
+\eenum
+
+\eenum

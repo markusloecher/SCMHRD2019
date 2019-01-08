@@ -1,0 +1,255 @@
+---
+title: "Exercise I, PostDay1"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+Weakliem<-read.table('eppsac-utdallas/data/Weakliem.txt', header=TRUE)
+
+library (MASS)
+library(mgcv)
+attach(Weakliem)
+```
+
+## The data
+
+Each case represents a country. The variables are:
+
+– **secpay**: Average public opinion in the country towards
+pay inequality. High values indicate egalitarian attitudes.
+(From the World Values Survey)
+– **gini**: The gini coefficient (a measure of income
+inequality).
+– **gdp**: The gross domestic product for the country.
+– **hetero**: A measure of the level of ethnic and religious
+heterogeneity. High values indicate highly homogeneous.
+– **democrat**: Coded 1 if the country is democratic; 0 if it is
+not
+
+
+
+1. Using the `gam` function, fit a generalized additive model
+regressing `secpay` on `gini` and `gdp` (both with a
+smoothing term). Using the `summary` function, see if the
+smooth terms are statistically significant?
+
+2. Use the `plot` function to plot the trends and their
+standard errors. Try plotting the on the same page.
+Type ?plot.gam for help.
+
+3. Continuing from the previous exercise, fit a semiparametric
+model regressing `secpay` on `gini` and
+`democrat`. (Remember, `democrat` is a categorical
+variable). Explore the summary for the model to see if
+democracy is statistically significant.
+
+4. Now fit a model that specifies an interaction between
+democrat and s(gini). (You will need to create two
+dummy variables for dummy—Type ?gam for help).
+
+5. Plot the effects of the above interaction, putting the two
+smooths on the same page (type ?split.screen and
+?plot.gam for help).
+
+6. Detach the `mgcv` package (but not the Weakliem
+dataset), and load the `gam` package. [We detach mgcv
+when before loading the gam package because they have
+different functions of the same name]. Type ?detach for
+help.
+
+7. Now refit the model from exercise 4 above, specifying
+a lowess smooth for the gini effect (type ?lo for help).
+Compare the results of this model to those in exercise
+4.
+
+```{r}
+mod.gam1<-gam(secpay~s(gini)+s(gdp))
+summary(mod.gam1)
+
+#4
+plot(mod.gam1, se=TRUE, pages=1)
+
+#5
+mod.semi1<-gam(secpay~s(gini)+democrat)
+summary(mod.semi1)
+
+#6
+  ##must create two separate dummy variables for the
+  ##categorical variable to be used in an interaction
+demo<-as.numeric(democrat==1)
+nondemo<-as.numeric(democrat==0)
+  ##gam including democracy*s(gini) interaction
+mod.semi2<-gam(secpay~s(gini, by=demo)+s(gini, by=nondemo))
+summary(mod.semi2)
+
+#7
+split.screen(figs=c(1,2))
+screen(1)
+plot(mod.semi2, select=1)
+title("Democracies")
+screen(2)
+plot.gam(mod.semi2, select=2)
+title("Nondemocracies")
+close.screen(all=TRUE)
+
+#8
+detach(package:mgcv)
+library(gam)
+
+#9
+mod.lo<-gam(secpay~lo(gini)+democrat)
+summary(mod.lo)
+plot(mod.lo, se=TRUE) 
+```
+
+
+#Exploratory Data Analysis
+
+```{r, eval =FALSE}
+#Ex. 1
+# Text files are read using the "read.table" function
+# header=TRUE treats the first row as variable names
+
+attach(Weakliem)
+summary(Weakliem)
+
+#Ex. 2
+# loading the "car" library
+library(car)
+scatterplotMatrix(~secpay + gini + gdp+ hetero | democrat)
+
+#Ex. 3
+plot(gini, secpay)
+abline(lm(secpay~gini)) #plots line from linear model
+
+plot(gdp, secpay)
+abline(lm(secpay~gdp))
+
+
+#Ex. 4
+split.screen(figs=c(1,2))
+screen(1)
+plot(gini,secpay)
+abline(lm(secpay~gini))
+screen(2)
+plot(gdp, secpay)
+abline(lm(secpay~gdp))
+close.screen(all=TRUE)
+
+    ##Alternative way using "par" and "mfrow"
+    par(mfrow=c(1,2))  #specifies 1 row and 2 columns
+    plot(gini,secpay)
+    abline(lm(secpay~gini))
+    plot(gdp, secpay)
+    abline(lm(secpay~gdp))
+    
+##Ex. 5
+mod1<-lm(secpay~gdp+gini)
+summary(mod1)
+par(mfrow=c(2,2)) #puts all 4 diagnostic plots on one screen
+plot(mod1)
+
+##Ex. 6
+par(mfrow=c(1,1)) #setting the screen back to one display
+crPlots(mod1) # component-plus-residuals plots in car package
+     #to exit, type 0
+
+##Ex. 7
+mod2<-lm(secpay~gini+democrat)
+summary(mod2)
+
+##Ex. 8
+democrat2<-as.factor(democrat) #as.factor treats democrat as categorical
+mod3<-lm(secpay~gini*democrat2)  
+summary(mod3)
+
+##Ex. 9
+if (require(effects))
+  plot(all.effects(mod3))
+
+##Ex. 10
+detach(Weakliem)
+
+############################################
+###Scatterplots and Transformation Exercises
+############################################
+
+##1
+library(car)
+data(Prestige) #loads a dataset that is included in a package
+attach(Prestige)
+
+##2
+scatterplot(income, prestige)
+
+##3
+log.inc<-log(income)
+scatterplot(log.inc, prestige)
+
+##4
+scatterplot(prestige~income|type)
+
+
+##############################
+###Polynomial Regession
+##############################
+
+##1 and 2
+mod2<-lm(prestige~poly(income,3)+type)
+summary(mod2) ##quadratic model fits best:
+mod3<-lm(prestige~poly(income,2)+type)
+
+#3
+income2<-income^2 
+mod3b<-lm(prestige~income+income2+type)
+summary(mod3)
+summary(mod3b)
+
+#4
+mod4<-lm(prestige~income^2+type)
+
+AIC(mod3)
+AIC(mod4)
+    ##Mod 3 fits much better
+if (require(effects)){
+  plot(all.effects(mod3))
+  plot(all.effects(mod4))
+}
+
+
+
+###############################
+##Lowess and Smoothing Splines
+###############################
+
+#1
+library(car)
+data(Prestige)
+attach(Prestige)
+mod.lm<-lm(prestige~income)
+mod.lowess<-lowess(income, prestige)
+mod.spline<-smooth.spline(income, prestige)
+
+#2
+plot(income,prestige)
+abline(mod.lm, col="blue")
+lines(mod.lowess)
+lines(mod.spline,col="red")
+
+#3
+mod.lm<-lm(prestige~income)
+mod.loess<-loess(prestige~income)
+summary(mod.loess)
+
+    #residual sum of squares for the two models
+rss1<-sum(residuals(mod.lm)^2)
+rss2<-sum(residuals(mod.loess)^2)
+    #F-Test
+Ftest<-((rss1-rss2)/(6.09-2))/(rss2/(102-6.09))
+pf(Ftest, 6.09-2, 102-6.09, lower.tail=FALSE)
+    ##significant difference
+
+
+```
+

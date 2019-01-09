@@ -199,6 +199,44 @@ mod6 <- gam(hw.mpg ~ s(weight, by= fuel) + fuel, data = mpg, method = "REML")
 plot(mod6, page = 1, shade = TRUE, residuals = TRUE, cex=2,shift = coef(mod6)[1], rug=FALSE)
 ```
 
+# Interactions
+
+Remember the Advertising Data from the ISLR book:
+
+
+```{r}
+Advertising <- read.csv("data/Advertising.csv")
+#get rid of the first column
+Advertising <- Advertising[,-1]
+
+```
+
+```{r, fig.width=10, echo=FALSE}
+plotAds = function(x="TV", myData=Advertising, col = "blue",m=m, LS=TRUE){
+  plot(myData[,x], myData$Sales, pch=20, col = col, xlab = x, ylab = "Sales");grid();
+  title(paste("r=", round(cor(myData[,x], myData$Sales),2)))
+  m = colMeans(Advertising[,c(x,"Sales")])
+  points(m[x],m["Sales"], col="red",pch=19,cex=1.75)
+  if (LS) {
+    abline(lm.fit(cbind(rep(1,nrow(myData)),myData[,x]), myData$Sales), col=2, lwd=2)
+  }
+}
+
+par(mfrow=c(1,3),cex=1)
+plotAds("TV")
+plotAds("Radio", col = "darkgreen")
+plotAds("Newspaper", col = "purple")
+```
+
+## Classification
+
+Let us make a binary feature in the Advertising data:
+
+```{r}
+Advertising$HighSales = Advertising$Sales > median(Advertising$Sales)
+Advertising$HighSales = factor(Advertising$HighSales)
+
+```
 
 ## [GAM Exercises part II](exercises/GAM-Exercises-II.html)
 

@@ -65,7 +65,7 @@ Be prepared to wait a while, lots of dependent packages are being installed as w
 
 [Berlin School of Economics and Law](http://www.hwr-berlin.de "BSEL Homepage")
 
-[Prof. Markus Loecher](http://www.hwr-berlin.de/fachbereich-wirtschaftswissenschaften/kontakt/personen/kontakt-info/2184/ "ML official university link")
+[Prof. Markus Loecher](https://www.hwr-berlin.de/en/hwr-berlin/about-us/staff/414-markus-loecher/ "ML official university link")
 
 [my blog](https://blog.hwr-berlin.de/codeandstats/ "blog")
 

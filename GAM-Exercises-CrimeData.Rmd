@@ -1,0 +1,131 @@
+---
+title: "San Francisco Crime Data"
+author: "M Loecher"
+output: 
+  html_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(lubridate)
+library(dygraphs)
+library(xts)
+library(mgcv)
+revealCode=FALSE
+```
+
+
+Read in sample of SF crime data for 2014
+
+```{r, echo=TRUE}
+print(load("../data/crimes2014.rda"))#
+
+class(crimes2014$Time)
+
+head(crimes2014)
+
+```
+
+### date/time classes in R
+
+
+1. How would you compute the *DayOfWeek* from the timestamp? (Hint: check out the library *lubridate*)
+ 
+```{r, echo=revealCode}
+library(lubridate)
+crimes2014$DayOfWeek = as.character(wday(crimes2014$Time,label=TRUE))
+crimes2014$DayOfWeek = wday(crimes2014$Time,label=TRUE)
+```
+ 
+2. How would you compute the *HourOfWeek* from the timestamp?
+What ambiguity needs to be first agreed upon so that you can compare your results to the data given.
+```{r, echo=revealCode}
+crimes2014$TimeOfDay = hour(crimes2014$Time) + minute(crimes2014$Time)/60
+crimes2014$HourOfWeek = crimes2014$TimeOfDay + (wday(crimes2014$Time)-1)*24
+
+```
+
+2. Compute and graph the integer weekhour pattern of violent crime rate as a barplot. The function *table* will be useful. An example is shown below.
+
+```{r, echo=revealCode, fig.width=12}
+DoW=c("Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday")
+
+  m = table(round(crimes2014$HourOfWeek),crimes2014$violent)
+  bp =  barplot(m[,"TRUE"]/rowSums(m))
+  
+  bp =  barplot(m[,"TRUE"]/rowSums(m), xlab = "hour of week", ylab="violent proportion", col = "blue",space = 0,names.arg="")
+  abline(v= bp[seq(24,by=24,length=6)], lty = 2, col="green")
+  
+  for (j in 1:7) mtext(substring(DoW, 1,3)[j], side=3, at =bp[seq(12,by=24,length=7)[j]], col = "green")
+```
+
+
+
+3. Using the commands *table()* and *format()* build an hourly time series of counts of (all) crimes. (Hint: as.POSIXct("2012-01-02 08", format="%Y-%m-%d %H"))
+```{r, echo=revealCode}
+h = table(format(crimes2014$Time,  "%Y-%m-%d %H:00:00"))
+```
+
+4. Plot that time series.
+
+```{r,echo=revealCode}
+plot(as.POSIXct(names(h)), as.numeric(h), type="l", xlab = "", ylab = "Num Crimes", col = "darkblue")
+title("Hourly crimes in San Francisco")
+grid()
+```
+
+
+### Interactive Charts
+
+5. Use the package *dygraphs* and look up the documentation
+at http://rstudio.github.io/dygraphs/
+Try to understand the pipe operator %>% and create another interactive time series chart with a range selector!
+
+```{r echo=revealCode}
+ 
+#CrimeCounts=xts(NumCrimes=as.numeric(h),as.POSIXct(names(h))) 
+CrimeCounts=xts(as.numeric(h),as.POSIXct(names(h)))
+plot(CrimeCounts)
+#dygraph(CrimeCounts)
+
+dygraph(CrimeCounts) %>%  dyRangeSelector() 
+```
+
+6. The * %>% *command is a so called "pipe operator" which is super useful in that it passes the   output from one command to another. Simply left to right! In base R we would normally achieve  this by chaining functions, e.g. in class we often nest commands such as 
+ ``` round(mean(x),2) ```,  which in pipe notation would then be written as ``` mean(x) %>% round(,2) ```
+
+
+
+# GAMs 
+
+Generalized Additive Models to model temporal patterns.
+
+7. Fit a GAM to find the hour-of-day pattern
+
+```{r,echo=revealCode}
+
+#better illustrated with crime data!
+fit5 = gam(violent ~ s(TimeOfDay, k = 12), family=binomial, data = crimes2014)
+plot(fit5, trans=exp)
+summary(fit5)
+fittedVals = predict(fit5, type = "response", se.fit = TRUE)
+
+```
+
+8. Fit a GAM to find the day-of-week pattern
+
+9. Fit a GAM that combines both effects additively
+
+10. 
+   * Do you believe that this would be a sufficiently rich model ? 
+   * How else could you combine the two different periodicities ?
+   * Look up cyclic spines (periodic boundary conditions) and decide if their implementation makes sense for this case.
+   * Look up the help function for `bam` and try to speed up your fit.
+
+## Temporal Correlations
+
+11. model the autocorrelation!
+
+

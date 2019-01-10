@@ -1,0 +1,264 @@
+---
+title: "Trees and Forests"
+output:    
+  html_document:
+     toc: true
+     toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,fig.width=10, message=FALSE, warning=FALSE)
+library(rpart)
+library(partykit, quietly = TRUE)
+library(tree)
+library(h2o)
+library(randomForest)
+library(gbm)
+
+library(knitr)
+#Color Format
+colFmt = function(x,color){
+  outputFormat = opts_knit$get("rmarkdown.pandoc.to")
+  if(outputFormat == 'latex')
+    paste("\\textcolor{",color,"}{",x,"}",sep="")
+  else if(outputFormat == 'html')
+    paste("<font color='",color,"'>",x,"</font>",sep="")
+  else
+    x
+}
+```
+
+```{r}
+#data
+
+#regression
+housing  <- read.csv("data/housing.csv.gz")#https://www.kaggle.com/camnugent/california-housing-prices
+
+data(Boston, package="MASS")
+set.seed(1)
+train = sample(1:nrow(Boston), nrow(Boston)/2)
+boston.train=Boston[train,]
+boston.test=Boston[-train,]
+
+#classification
+data(SAheart, package = "ElemStatLearn")
+
+Titanic <- read.csv("data/TitanicTrain.csv")
+Titanic$Survived = factor(Titanic$Survived)
+Titanic$Pclass = factor(Titanic$Pclass)
+
+```
+
+# Pruning and Cross Validation
+
+The Rpart implementation first fits a fully grown tree on the entire data $D$ with $T$ terminal nodes. After this step, the tree is pruned to the smallest tree with lowest miss-classification loss. This is how it works:
+
+ 1. The data is then split into $n$ (default = 10) randomly selected folds: $F_1$ to $F_{10}$
+ 2. It then uses 10-fold cross-validation and fits each sub-tree $T_1 ... T_m $ on each training fold $D_s$.
+ 3. The corresponding miss-classification loss (risk) $R_m$ for each sub-tree is then calculated by comparing the class predicted for the validation fold vs. actual class; and this risk value for each sub-tree is summed up for all folds.
+ 4. The complexity parameter $\beta$ giving the lowest total risk over the whole dataset is finally selected.
+ 5. The full data is then fit using this complexity parameter and this tree is selected as the best trimmed tree.
+
+Hence, when you use `plotcp`, it plots the relative cross-validation error for each sub-tree from smallest to largest to let you compare the risk for each complexity parameter $\beta$.
+
+
+# Regression Trees
+
+## Boston
+
+### rpart 
+
+```{r}
+
+fit1=rpart(medv ~ .,Boston)
+plot(as.party(fit1))
+plotcp(fit1)
+```
+
+
+
+### partykit 
+
+```{r}
+
+fit2=ctree(medv ~ .,Boston)
+plot(fit2)
+```
+
+## CA Housing data
+
+### rpart 
+
+```{r}
+
+fit1=rpart(median_house_value ~ .,housing)
+plot(as.party(fit1))
+```
+
+### partykit 
+
+```{r,eval=FALSE}
+
+fit2=ctree(median_house_value ~ .,housing)
+plot(fit2)
+```
+
+----------------------------------------------------------------------------------------
+
+
+# Classification Trees
+
+## Titanic
+
+### rpart 
+
+```{r}
+
+fit1=rpart(Survived ~ Sex + Age + Pclass,Titanic)
+plot(as.party(fit1))
+```
+
+### ctree 
+
+```{r}
+
+fit2=ctree(Survived ~ Sex + Age + Pclass,Titanic)
+plot(fit2)
+```
+
+Why does the tree not split any more on females in classes 1 and 2 ?
+
+
+## Heart data
+
+### rpart 
+
+```{r}
+
+fit1=rpart(chd ~ .,SAheart)
+plot(as.party(fit1))
+```
+
+### ctree 
+
+```{r}
+fit2=ctree(chd ~ .,SAheart)
+plot(fit2)
+```
+
+# Bagged Trees
+
+
+
+## Housing
+
+## Heart
+
+
+# Random Forests
+
+## Boston
+
+```{r, message=FALSE}
+library(randomForest)
+set.seed(1)
+
+rf.boston=randomForest(medv~.,data=boston.train,mtry=6,importance=TRUE)
+yhat.rf = predict(rf.boston,newdata=boston.test)
+mean((yhat.rf-boston.test)^2)
+importance(rf.boston)
+varImpPlot(rf.boston)
+```
+
+The test setMSE associated with the random forest is 11.48, less than
+half that obtained using an optimally-pruned single tree.
+
+##### `r colFmt("Change a few parameters and explore the prediction error",'red')`
+
+##### `r colFmt("Compare the test set prediction error with the OOB estimates",'red')`
+
+```{r}
+rf.boston2=randomForest(medv~.,data=boston.train,mtry=3,ntree = 500,importance=TRUE)
+yhat.rf = predict(rf.boston2,newdata=boston.test)
+mean((yhat.rf-boston.test)^2)
+#rf.boston2$predicted
+```
+
+##### `r colFmt("Change the code above so that instead of random forests the model is just bagged trees.",'red')` 
+
+## Housing
+
+## Heart
+
+### h2o 
+
+```{r}
+
+
+```
+
+# Boosting
+
+## Boston
+
+Here we use the gbm package, and within it the gbm() function, to fit boosted regression trees to the Boston data set. We run gbm() with the option
+distribution="gaussian" since this is a regression problem; if it were a binary
+classification problem, we would use distribution="bernoulli". The
+argument n.trees=1000 indicates that we want 1000 trees, and the option
+interaction.depth=4 limits the depth of each tree.
+
+```{r, message=FALSE}
+library(gbm)
+set.seed(1)
+boost.boston=gbm(medv~.,data=boston.train,distribution="gaussian",n.trees=1000,interaction.depth=4)
+```
+
+The summary() function produces a relative influence plot and also outputs
+the relative influence statistics.
+
+```{r}
+summary(boost.boston)
+```
+
+
+We see that lstat and rm are by far the most important variables. We can
+also produce *partial dependence plots* for these two variables. These plots
+illustrate the marginal effect of the selected variables on the response after
+integrating out the other variables. In this case, as we might expect, median
+house prices are increasing with rm and decreasing with lstat.
+
+```{r}
+par(mfrow=c(1,2))
+plot(boost.boston,i="rm")
+plot(boost.boston,i="lstat")
+```
+
+We now use the boosted model to predict medv on the test set:
+
+```{r}
+yhat.boost=predict(boost.boston,newdata=boston.test,n.trees=1000)
+mean((yhat.boost-boston.test)^2)
+```
+
+The test MSE obtained is 11.8; similar to the test MSE for random forests
+and superior to that for bagging. If we want to, we can perform boosting
+with a different value of the shrinkage parameter $\lambda$ in (8.10). The default
+value is 0.001, but this is easily modified. Here we take $\lambda= 0.2$.
+
+```{r}
+set.seed(124)
+boost.boston=gbm(medv~.,data=boston.train,distribution="gaussian",n.trees=1000,interaction.depth=2,shrinkage=0.05,verbose=F)
+yhat.boost=predict(boost.boston,newdata=boston.test,n.trees=1000)
+mean((yhat.boost-boston.test)^2)
+
+```
+
+
+In this case, using $\lambda= 0.2$ leads to a slightly lower test MSE than $\lambda= 0.001$ which is somewhat unusual.
+
+##### `r colFmt("Change interaction depth and explore the prediction error",'red')`
+
+## Housing
+
+## Heart
+

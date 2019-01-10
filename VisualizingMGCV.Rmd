@@ -1,0 +1,51 @@
+---
+title: "visual tools for GAMs"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(mgcv)
+```
+
+
+## Standard way
+
+```{r}
+Advertising <- read.csv("data/Advertising.csv")
+#get rid of the first column
+Advertising <- Advertising[,-1]
+
+```
+
+
+```{r}
+gamAd2 = gam(Sales ~ s(Radio) + s(TV) + s(Radio, TV), data = Advertising)
+#summary(gamAd2)
+```
+
+```{r,fig.width=12}
+#plot(gamAd2)
+par(mfrow=c(1,2),mar=c(1,1,1,1))
+#split.screen(c(1,2))
+#screen(1)
+vis.gam(gamAd2)
+#screen(2)
+vis.gam(gamAd2, n.grid = 50, theta = 35, phi = 32, zlab = "",
+        ticktype = "detailed", color = "topo")
+```
+
+
+## Interactive Plots
+
+Thanks to https://mfasiolo.github.io/mgcViz/articles/mgcviz.html 
+
+
+```{r, out.width="8in"}
+library(mgcViz)
+gamAd2 = gam(Sales ~ s(Radio, TV), data = Advertising)
+
+plotRGL(sm(getViz(gamAd2), 1), residuals = TRUE)
+```
+
+
+
